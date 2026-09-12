@@ -1,5 +1,14 @@
 -- Brainrot Free Eats GUI (Executor) - Full Auto
 
+local TeleportService = game:GetService("TeleportService")
+local targetPlaceId = 84968446824850
+
+if game.PlaceId ~= targetPlaceId then
+    TeleportService:Teleport(targetPlaceId)
+    return
+end
+
+-- rest of the script stays exactly the same from here downward
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -54,7 +63,7 @@ title.Name = "Title"
 title.Size = UDim2.new(1, -50, 0, 36)
 title.Position = UDim2.new(0, 14, 0, 8)
 title.BackgroundTransparency = 1
-title.Text = "Brainrot free eats by xexy and grok"
+title.Text = "Brainrot free eats"
 title.TextColor3 = Color3.fromRGB(255, 255, 255)
 title.TextSize = 22
 title.Font = Enum.Font.GothamBold
