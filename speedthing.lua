@@ -1,6 +1,15 @@
 --[[
-    xexy hub | Universal Hub & Support Validator
+    speedthing.lua
+    Full Hub Edition with Main, Farm, Side, and Info tabs
+    (Upload this to your GitHub repository as speedthing.lua)
 ]]
+
+local CoreGui = game:GetService("CoreGui")
+
+-- Clean up any existing instances so windows never stack
+if CoreGui:FindFirstChild("xexyHub") then
+    CoreGui["xexyHub"]:Destroy()
+end
 
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
@@ -9,26 +18,18 @@ local TweenService = game:GetService("TweenService")
 local TeleportService = game:GetService("TeleportService")
 local MarketplaceService = game:GetService("MarketplaceService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local CoreGui = game:GetService("CoreGui")
 
 local player = Players.LocalPlayer
 
 -- =========================================================
--- REPOSITORY CONFIGURATION
+-- CONFIGURATION & SETTINGS
 -- =========================================================
 
-local BaseRepoURL = "https://raw.githubusercontent.com/xexyimports/brainrotfreeeats/refs/heads/main/"
-local SupportedListURL = BaseRepoURL .. "supportedgames.txt"
-
--- Built-in Speed Farm Settings (for games without a .lua attached)
 local StepsAmount = 9999999999999999999
 local EndCFrame = CFrame.new(-5.63876893e-06, 2, -9076, 0, 0, 1, 0, 1, 0, -1, 0, 0)
-
-local SupportedPlaceIds = {}
-local CurrentGameData = nil
-local IsGameSupported = false
-local SupportedLoaded = false
 local Minimized = false
+
+local SupportedListURL = "https://raw.githubusercontent.com/xexyimports/brainrotfreeeats/main/supportedgames.txt"
 
 -- =========================================================
 -- CREATE GUI
@@ -288,7 +289,6 @@ local function makeToggle(parent, text, y)
 
     local state = false
     toggle.MouseButton1Click:Connect(function()
-        if not IsGameSupported then return end
         state = not state
         TweenService:Create(toggle, TweenInfo.new(0.15), {
             BackgroundColor3 = state and Color3.fromRGB(200, 30, 55) or Color3.fromRGB(50, 18, 24)
@@ -298,7 +298,7 @@ local function makeToggle(parent, text, y)
         }):Play()
     end)
 
-    return function() return state and IsGameSupported end
+    return function() return state end
 end
 
 local function makeTextbox(parent, placeholder, y, default)
@@ -326,7 +326,7 @@ local function makeTextbox(parent, placeholder, y, default)
 end
 
 -- =========================================================
--- MAIN TAB
+-- MAIN PAGE (GAME INFO + TELEPORT LIST)
 -- =========================================================
 
 makeLabel(MainPage, "CURRENT GAME", 6)
@@ -335,7 +335,7 @@ local GameNameLabel = Instance.new("TextLabel")
 GameNameLabel.Size = UDim2.new(1, -16, 0, 30)
 GameNameLabel.Position = UDim2.new(0, 8, 0, 26)
 GameNameLabel.BackgroundColor3 = Color3.fromRGB(28, 10, 14)
-GameNameLabel.Text = "  Checking repository..."
+GameNameLabel.Text = "  Speed game thing"
 GameNameLabel.TextColor3 = Color3.fromRGB(255, 90, 110)
 GameNameLabel.Font = Enum.Font.GothamBold
 GameNameLabel.TextSize = 14
@@ -346,15 +346,24 @@ local GameNameCorner = Instance.new("UICorner")
 GameNameCorner.CornerRadius = UDim.new(0, 7)
 GameNameCorner.Parent = GameNameLabel
 
+task.spawn(function()
+    pcall(function()
+        local info = MarketplaceService:GetProductInfo(game.PlaceId)
+        if info and info.Name then
+            GameNameLabel.Text = "  " .. info.Name
+        end
+    end)
+end)
+
 makeLabel(MainPage, "PLACE ID: " .. tostring(game.PlaceId), 64)
 makeLabel(MainPage, "SUPPORT STATUS", 96)
 
 local StatusLabel = Instance.new("TextLabel")
 StatusLabel.Size = UDim2.new(1, -16, 0, 34)
 StatusLabel.Position = UDim2.new(0, 8, 0, 118)
-StatusLabel.BackgroundColor3 = Color3.fromRGB(40, 15, 20)
-StatusLabel.Text = "  Checking repository..."
-StatusLabel.TextColor3 = Color3.fromRGB(220, 180, 190)
+StatusLabel.BackgroundColor3 = Color3.fromRGB(20, 50, 30)
+StatusLabel.Text = "  ✓ SUPPORTED"
+StatusLabel.TextColor3 = Color3.fromRGB(80, 255, 140)
 StatusLabel.Font = Enum.Font.GothamBold
 StatusLabel.TextSize = 14
 StatusLabel.TextXAlignment = Enum.TextXAlignment.Left
@@ -375,7 +384,6 @@ makeLabel(MainPage, "SUPPORTED GAMES LIST", 242)
 makeLabel(MainPage, "Click a game below to teleport to it.", 264)
 
 local GamesContainer = Instance.new("ScrollingFrame")
-GamesContainer.Name = "GamesContainer"
 GamesContainer.Size = UDim2.new(1, -16, 0, 145)
 GamesContainer.Position = UDim2.new(0, 8, 0, 290)
 GamesContainer.BackgroundTransparency = 1
@@ -396,7 +404,6 @@ end)
 
 local function addGameButton(placeId, gameName, order)
     local button = Instance.new("TextButton")
-    button.Name = "Game_" .. tostring(placeId)
     button.Size = UDim2.new(1, 0, 0, 34)
     button.BackgroundColor3 = Color3.fromRGB(160, 25, 45)
     button.BorderSizePixel = 0
@@ -419,27 +426,44 @@ local function addGameButton(placeId, gameName, order)
     end)
 end
 
+-- Safely populate the teleport list from GitHub (Teleport only — will NEVER load or loop scripts)
+task.spawn(function()
+    local ok, res = pcall(function() return game:HttpGet(SupportedListURL) end)
+    if not ok or not res or res:match("^404") then
+        local altUrl = "https://raw.githubusercontent.com/xexyimports/brainrotfreeeats/refs/heads/main/supportedgames.txt"
+        local ok2, res2 = pcall(function() return game:HttpGet(altUrl) end)
+        if ok2 then res = res2 end
+    end
+
+    if res then
+        local order = 1
+        for line in res:gmatch("[^\r\n]+") do
+            line = line:gsub("^%s+", ""):gsub("%s+$", "")
+            if line ~= "" and not line:match("^#") then
+                local parts = string.split(line, "|")
+                local id = tonumber(parts[1]:match("%d+"))
+                local name = parts[2] and parts[2]:gsub("^%s+", ""):gsub("%s+$", "") or ("Place " .. tostring(id))
+                if id then
+                    addGameButton(id, name, order)
+                    order = order + 1
+                end
+            end
+        end
+    end
+end)
+
 -- =========================================================
--- FARM TAB UI
+-- FARM PAGE
 -- =========================================================
 
-makeLabel(FarmPage, "FARMING", 6)
-local FarmStatusLabel = makeLabel(FarmPage, "Checking repository...", 28)
+makeLabel(FarmPage, "SPEED FARM CONTROLS", 6)
 
--- Speed Farm container (used when game has no .lua in txt)
-local SpeedFarmFrame = Instance.new("Frame")
-SpeedFarmFrame.Size = UDim2.new(1, 0, 1, -55)
-SpeedFarmFrame.Position = UDim2.new(0, 0, 0, 55)
-SpeedFarmFrame.BackgroundTransparency = 1
-SpeedFarmFrame.Visible = false
-SpeedFarmFrame.Parent = FarmPage
+local getAutoSteps = makeToggle(FarmPage, "Auto Farm Steps", 32)
+local getAutoCash = makeToggle(FarmPage, "Auto Cash (CFrame)", 72)
+local getAutoRebirth = makeToggle(FarmPage, "Auto Rebirth", 112)
 
-local getAutoSteps = makeToggle(SpeedFarmFrame, "Auto Farm Steps", 0)
-local getAutoCash = makeToggle(SpeedFarmFrame, "Auto Cash (CFrame)", 40)
-local getAutoRebirth = makeToggle(SpeedFarmFrame, "Auto Rebirth", 80)
-
-makeLabel(SpeedFarmFrame, "STEPS AMOUNT", 126)
-local StepsBox = makeTextbox(SpeedFarmFrame, "Enter steps amount...", 148, StepsAmount)
+makeLabel(FarmPage, "STEPS AMOUNT", 156)
+local StepsBox = makeTextbox(FarmPage, "Enter steps amount...", 178, StepsAmount)
 
 StepsBox.FocusLost:Connect(function()
     local n = tonumber(StepsBox.Text)
@@ -451,152 +475,23 @@ StepsBox.FocusLost:Connect(function()
     end
 end)
 
--- External Script container (used when game has a .lua file attached)
-local ExternalScriptFrame = Instance.new("Frame")
-ExternalScriptFrame.Size = UDim2.new(1, 0, 1, -55)
-ExternalScriptFrame.Position = UDim2.new(0, 0, 0, 55)
-ExternalScriptFrame.BackgroundTransparency = 1
-ExternalScriptFrame.Visible = false
-ExternalScriptFrame.Parent = FarmPage
-
-local ExtLoadedLabel = makeLabel(ExternalScriptFrame, "Running external script from GitHub:", 0)
-
-local ExtFileNameBox = Instance.new("TextLabel")
-ExtFileNameBox.Size = UDim2.new(1, -16, 0, 32)
-ExtFileNameBox.Position = UDim2.new(0, 8, 0, 24)
-ExtFileNameBox.BackgroundColor3 = Color3.fromRGB(28, 10, 14)
-ExtFileNameBox.Text = "  None"
-ExtFileNameBox.TextColor3 = Color3.fromRGB(80, 255, 140)
-ExtFileNameBox.Font = Enum.Font.GothamBold
-ExtFileNameBox.TextSize = 13
-ExtFileNameBox.TextXAlignment = Enum.TextXAlignment.Left
-ExtFileNameBox.Parent = ExternalScriptFrame
-
-local ExtCorner = Instance.new("UICorner")
-ExtCorner.CornerRadius = UDim.new(0, 7)
-ExtCorner.Parent = ExtFileNameBox
-
--- =========================================================
--- REPOSITORY CHECK & DYNAMIC LOADER
--- =========================================================
-
-task.spawn(function()
-    local success, result = pcall(function()
-        return game:HttpGet(SupportedListURL)
-    end)
-
-    if success and type(result) == "string" then
-        for line in string.gmatch(result, "[^\r\n]+") do
-            line = line:gsub("^%s+", ""):gsub("%s+$", "")
-            if line ~= "" and not line:match("^#") then
-                local parts = string.split(line, "|")
-                local id = tonumber(parts[1] and parts[1]:match("%d+"))
-                if id then
-                    local name = parts[2] and parts[2]:gsub("^%s+", ""):gsub("%s+$", "") or ""
-                    local scriptFile = parts[3] and parts[3]:gsub("^%s+", ""):gsub("%s+$", "") or ""
-
-                    SupportedPlaceIds[id] = {
-                        name = (name ~= "" and name) or ("Place " .. tostring(id)),
-                        script = (scriptFile ~= "" and scriptFile) or nil
-                    }
-                end
-            end
-        end
-    end
-
-    CurrentGameData = SupportedPlaceIds[game.PlaceId]
-    IsGameSupported = (CurrentGameData ~= nil)
-    SupportedLoaded = true
-
-    -- 1. NOT SUPPORTED
-    if not IsGameSupported then
-        StatusLabel.Text = "  ✗ NOT SUPPORTED"
-        StatusLabel.TextColor3 = Color3.fromRGB(255, 90, 100)
-        StatusLabel.BackgroundColor3 = Color3.fromRGB(50, 15, 20)
-
-        FarmStatusLabel.Text = "✗ Game is NOT supported. Farming disabled."
-        FarmStatusLabel.TextColor3 = Color3.fromRGB(255, 90, 100)
-        makeLabel(FarmPage, "This game is not listed in your repository.", 55)
-
-        pcall(function()
-            local info = MarketplaceService:GetProductInfo(game.PlaceId)
-            GameNameLabel.Text = "  " .. (info and info.Name or game.Name)
-        end)
-
-    -- 2. SUPPORTED
-    else
-        StatusLabel.Text = "  ✓ SUPPORTED"
-        StatusLabel.TextColor3 = Color3.fromRGB(80, 255, 140)
-        StatusLabel.BackgroundColor3 = Color3.fromRGB(20, 50, 30)
-        GameNameLabel.Text = "  " .. CurrentGameData.name
-
-        -- If the game has a .lua file listed in supportedgames.txt:
-        if CurrentGameData.script then
-            FarmStatusLabel.Text = "✓ Running GitHub Script: " .. CurrentGameData.script
-            FarmStatusLabel.TextColor3 = Color3.fromRGB(80, 255, 140)
-            ExtFileNameBox.Text = "  " .. CurrentGameData.script
-            ExternalScriptFrame.Visible = true
-
-            -- Execute the script from the repository
-            task.spawn(function()
-                local sUrl = BaseRepoURL .. CurrentGameData.script
-                print("[xexy hub] Fetching script from: " .. sUrl)
-                local ok, content = pcall(function() return game:HttpGet(sUrl) end)
-                if ok and content and content ~= "" then
-                    local runOk, runErr = pcall(function() loadstring(content)() end)
-                    if not runOk then
-                        warn("[xexy hub] Script runtime error: " .. tostring(runErr))
-                    end
-                else
-                    warn("[xexy hub] Could not fetch script from repository!")
-                end
-            end)
-
-        -- If the game has NO .lua file listed (Speed game thing):
-        else
-            FarmStatusLabel.Text = "✓ Speed Farm Active"
-            FarmStatusLabel.TextColor3 = Color3.fromRGB(80, 255, 140)
-            SpeedFarmFrame.Visible = true
-        end
-    end
-
-    -- Populate teleport list with repository games
-    local ids = {}
-    for placeId in pairs(SupportedPlaceIds) do
-        table.insert(ids, placeId)
-    end
-    table.sort(ids)
-
-    for order, placeId in ipairs(ids) do
-        local data = SupportedPlaceIds[placeId]
-        addGameButton(placeId, data.name, order)
-    end
-end)
-
--- =========================================================
--- SPEED GAME FARM ENGINE (Runs only for games without .lua)
--- =========================================================
-
-RunService.Heartbeat:Connect(function()
-    -- Only run if supported AND has no external script attached
-    if not IsGameSupported or (CurrentGameData and CurrentGameData.script) then
+-- Farm Loop
+local farmConn
+farmConn = RunService.Heartbeat:Connect(function()
+    if not ScreenGui or not ScreenGui.Parent then
+        if farmConn then farmConn:Disconnect() end
         return
     end
 
-    -- 1. Auto Steps
     if getAutoSteps() then
         local remotes = ReplicatedStorage:FindFirstChild("Remotes")
-        if remotes then
-            local event = remotes:FindFirstChild("StepTaken")
-            if event then
-                pcall(function()
-                    event:FireServer(StepsAmount, true, "Road1")
-                end)
-            end
+        if remotes and remotes:FindFirstChild("StepTaken") then
+            pcall(function()
+                remotes.StepTaken:FireServer(StepsAmount, true, "Road1")
+            end)
         end
     end
 
-    -- 2. Auto Cash (CFrame)
     if getAutoCash() then
         local char = player.Character
         if char and char:FindFirstChild("HumanoidRootPart") then
@@ -604,61 +499,45 @@ RunService.Heartbeat:Connect(function()
         end
     end
 
-    -- 3. Auto Rebirth
     if getAutoRebirth() then
         local remotes = ReplicatedStorage:FindFirstChild("Remotes")
-        if remotes then
-            local event = remotes:FindFirstChild("RequestRebirth")
-            if event then
-                pcall(function()
-                    event:FireServer("free")
-                end)
-            end
+        if remotes and remotes:FindFirstChild("RequestRebirth") then
+            pcall(function()
+                remotes.RequestRebirth:FireServer("free")
+            end)
         end
     end
 end)
 
 -- =========================================================
--- SIDE PAGE (LOADERS)
+-- SIDE PAGE
 -- =========================================================
 
-makeLabel(SidePage, "EXTERNAL UTILITIES & LOADERS", 6)
-
+makeLabel(SidePage, "EXTERNAL LOADERS", 6)
 makeButton(SidePage, "Load Cobalt", 30, function()
-    pcall(function()
-        loadstring(game:HttpGet("https://gitlab.com/upio/cobalt/-/releases/permalink/latest/downloads/Cobalt.luau"))()
-    end)
+    pcall(function() loadstring(game:HttpGet("https://gitlab.com/upio/cobalt/-/releases/permalink/latest/downloads/Cobalt.luau"))() end)
 end)
-
 makeButton(SidePage, "Load Infinite Yield", 76, function()
-    pcall(function()
-        loadstring(game:HttpGet("https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source"))()
-    end)
+    pcall(function() loadstring(game:HttpGet("https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source"))() end)
 end)
-
 makeButton(SidePage, "Load Dex++", 122, function()
-    pcall(function()
-        loadstring(game:HttpGet("https://github.com/AZYsGithub/DexPlusPlus/releases/latest/download/out.lua"))()
-    end)
+    pcall(function() loadstring(game:HttpGet("https://github.com/AZYsGithub/DexPlusPlus/releases/latest/download/out.lua"))() end)
 end)
-
-makeLabel(SidePage, "All external loaders are wrapped safely in pcall.", 175)
 
 -- =========================================================
 -- INFO PAGE
 -- =========================================================
 
 makeLabel(InfoPage, "PLAYER INFO", 6)
-
 local Avatar = Instance.new("ImageLabel")
 Avatar.Size = UDim2.new(0, 84, 0, 84)
 Avatar.Position = UDim2.new(0, 8, 0, 30)
 Avatar.BackgroundColor3 = Color3.fromRGB(28, 10, 14)
 Avatar.Parent = InfoPage
 
-local AvatarCorner = Instance.new("UICorner")
-AvatarCorner.CornerRadius = UDim.new(0, 10)
-AvatarCorner.Parent = Avatar
+local ac = Instance.new("UICorner")
+ac.CornerRadius = UDim.new(0, 10)
+ac.Parent = Avatar
 
 task.spawn(function()
     local ok, content = pcall(function()
@@ -667,41 +546,14 @@ task.spawn(function()
     if ok then Avatar.Image = content end
 end)
 
-local UserIdLabel = Instance.new("TextLabel")
-UserIdLabel.Size = UDim2.new(1, -110, 0, 22)
+local UserIdLabel = makeLabel(InfoPage, "UserId: " .. tostring(player.UserId), 36)
 UserIdLabel.Position = UDim2.new(0, 104, 0, 36)
-UserIdLabel.BackgroundTransparency = 1
-UserIdLabel.Text = "UserId: " .. tostring(player.UserId)
-UserIdLabel.TextColor3 = Color3.fromRGB(240, 200, 210)
-UserIdLabel.Font = Enum.Font.GothamBold
-UserIdLabel.TextSize = 14
-UserIdLabel.TextXAlignment = Enum.TextXAlignment.Left
-UserIdLabel.Parent = InfoPage
-
-local NameLabel = Instance.new("TextLabel")
-NameLabel.Size = UDim2.new(1, -110, 0, 20)
-NameLabel.Position = UDim2.new(0, 104, 0, 60)
-NameLabel.BackgroundTransparency = 1
-NameLabel.Text = "Name: " .. player.Name
-NameLabel.TextColor3 = Color3.fromRGB(200, 160, 170)
-NameLabel.Font = Enum.Font.Gotham
-NameLabel.TextSize = 13
-NameLabel.TextXAlignment = Enum.TextXAlignment.Left
-NameLabel.Parent = InfoPage
-
-local DisplayLabel = Instance.new("TextLabel")
-DisplayLabel.Size = UDim2.new(1, -110, 0, 20)
-DisplayLabel.Position = UDim2.new(0, 104, 0, 82)
-DisplayLabel.BackgroundTransparency = 1
-DisplayLabel.Text = "Display: " .. player.DisplayName
-DisplayLabel.TextColor3 = Color3.fromRGB(200, 160, 170)
-DisplayLabel.Font = Enum.Font.Gotham
-DisplayLabel.TextSize = 13
-DisplayLabel.TextXAlignment = Enum.TextXAlignment.Left
-DisplayLabel.Parent = InfoPage
+local NameLabel = makeLabel(InfoPage, "Name: " .. player.Name, 58)
+NameLabel.Position = UDim2.new(0, 104, 0, 58)
+local DisplayLabel = makeLabel(InfoPage, "Display: " .. player.DisplayName, 80)
+DisplayLabel.Position = UDim2.new(0, 104, 0, 80)
 
 makeLabel(InfoPage, "EXECUTOR", 130)
-
 local ExecutorLabel = Instance.new("TextLabel")
 ExecutorLabel.Size = UDim2.new(1, -16, 0, 32)
 ExecutorLabel.Position = UDim2.new(0, 8, 0, 152)
@@ -735,7 +587,7 @@ makeLabel(InfoPage, "PlaceId: " .. tostring(game.PlaceId), 200)
 makeLabel(InfoPage, "JobId: " .. tostring(game.JobId), 222)
 
 -- =========================================================
--- TAB SWITCHER & WINDOW LOGIC
+-- TAB SWITCHER
 -- =========================================================
 
 local pages = {
@@ -759,24 +611,23 @@ TabSide.MouseButton1Click:Connect(function() switchTab(TabSide) end)
 TabInfo.MouseButton1Click:Connect(function() switchTab(TabInfo) end)
 switchTab(TabMain)
 
+-- =========================================================
+-- WINDOW CONTROLS (CLOSE / MINIMIZE / SMOOTH DRAG)
+-- =========================================================
+
 CloseBtn.MouseButton1Click:Connect(function()
-    if ScreenGui then ScreenGui:Destroy() end
+    ScreenGui:Destroy()
 end)
 
 MinBtn.MouseButton1Click:Connect(function()
     Minimized = not Minimized
-    if Minimized then
-        Content.Visible = false
-        Side.Visible = false
-        Main.Size = UDim2.new(0, 560, 0, 38)
-    else
-        Content.Visible = true
-        Side.Visible = true
-        Main.Size = UDim2.new(0, 560, 0, 400)
-    end
+    Content.Visible = not Minimized
+    Side.Visible = not Minimized
+    Main.Size = Minimized and UDim2.new(0, 560, 0, 38) or UDim2.new(0, 560, 0, 400)
 end)
 
-local dragging, dragInput, dragStart, startPos
+local dragging, dragStart, startPos
+
 TopBar.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
         dragging = true
@@ -790,17 +641,11 @@ TopBar.InputBegan:Connect(function(input)
     end
 end)
 
-TopBar.InputChanged:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-        dragInput = input
-    end
-end)
-
 UserInputService.InputChanged:Connect(function(input)
-    if input == dragInput and dragging then
+    if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
         local delta = input.Position - dragStart
         Main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
     end
 end)
 
-print("[xexy hub] initialized and support checks ready")
+print("[xexy hub] speedthing.lua loaded with all 4 tabs.")
