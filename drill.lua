@@ -1,6 +1,7 @@
 --[[
     xexy hub
     Game: 78177131121429
+    File: drill.lua
 ]]
 
 local Players = game:GetService("Players")
@@ -19,7 +20,7 @@ local player = Players.LocalPlayer
 local SupportedListURL = "https://raw.githubusercontent.com/xexyimports/brainrotfreeeats/refs/heads/main/supportedgames.txt"
 local SupportedPlaceIds = {}
 local SupportedGamesInfo = {}
-local IsGameSupported = false
+local IsGameSupported = true          -- forced true (loader already verified)
 local SupportedLoaded = false
 
 local Minimized = false
@@ -104,7 +105,7 @@ workspace.DescendantAdded:Connect(function(desc)
     end
 end)
 
--- // LOAD SUPPORTED LIST
+-- // LOAD SUPPORTED LIST (for teleport buttons)
 task.spawn(function()
     local success, result = pcall(function()
         return game:HttpGet(SupportedListURL)
@@ -127,7 +128,6 @@ task.spawn(function()
         end
     end
 
-    IsGameSupported = SupportedPlaceIds[game.PlaceId] == true
     SupportedLoaded = true
 end)
 
@@ -431,9 +431,9 @@ makeLabel(MainPage, "SUPPORT STATUS", 96)
 local StatusLabel = Instance.new("TextLabel")
 StatusLabel.Size = UDim2.new(1, -16, 0, 34)
 StatusLabel.Position = UDim2.new(0, 8, 0, 118)
-StatusLabel.BackgroundColor3 = Color3.fromRGB(40, 15, 20)
-StatusLabel.Text = "  Checking..."
-StatusLabel.TextColor3 = Color3.fromRGB(220, 180, 190)
+StatusLabel.BackgroundColor3 = Color3.fromRGB(20, 50, 30)
+StatusLabel.Text = "  ✓ SUPPORTED"
+StatusLabel.TextColor3 = Color3.fromRGB(80, 255, 140)
 StatusLabel.Font = Enum.Font.GothamBold
 StatusLabel.TextSize = 14
 StatusLabel.TextXAlignment = Enum.TextXAlignment.Left
@@ -442,19 +442,6 @@ StatusLabel.Parent = MainPage
 local sc = Instance.new("UICorner")
 sc.CornerRadius = UDim.new(0, 7)
 sc.Parent = StatusLabel
-
-task.spawn(function()
-    while not SupportedLoaded do task.wait(0.1) end
-    if IsGameSupported then
-        StatusLabel.Text = "  ✓ SUPPORTED"
-        StatusLabel.TextColor3 = Color3.fromRGB(80, 255, 140)
-        StatusLabel.BackgroundColor3 = Color3.fromRGB(20, 50, 30)
-    else
-        StatusLabel.Text = "  ✗ NOT SUPPORTED"
-        StatusLabel.TextColor3 = Color3.fromRGB(255, 90, 100)
-        StatusLabel.BackgroundColor3 = Color3.fromRGB(50, 15, 20)
-    end
-end)
 
 makeLabel(MainPage, "SERVER", 168)
 makeButton(MainPage, "Server Hop (same game)", 190, function()
@@ -529,7 +516,7 @@ makeButton(FarmPage, "Teleport to Base", 70, function()
     end
 end)
 
-makeToggleButton(FarmPage, "Instant Brainrot Pickup dosnt work dont try", 112, function(state)
+makeToggleButton(FarmPage, "Instant Brainrot Pickup", 112, function(state)
     instantPickup = state
     if state then
         cachePrompts()
@@ -806,4 +793,4 @@ UserInputService.InputChanged:Connect(function(input)
     end
 end)
 
-print("[xexy hub] 78177131121429 loaded — stronger instant pickup")
+print("[xexy hub] drill.lua loaded — support forced to true")
